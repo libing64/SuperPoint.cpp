@@ -82,10 +82,15 @@ OnnxSession::OnnxSession(const std::string &model_path, int threads, bool use_cu
     if (use_cuda) {
         preload_cudnn9();
         try {
-            OrtCUDAProviderOptions cuda_opts{};
-            cuda_opts.device_id = 0;
-            opts_.AppendExecutionProvider_CUDA(cuda_opts);
+            OrtCUDAProviderOptionsV2 *cuda_opts = nullptr;
+            Ort::ThrowOnError(Ort::GetApi().CreateCUDAProviderOptions(&cuda_opts));
+            const char *keys[] = {"device_id", "use_tf32"};
+            const char *vals[] = {"0", "0"};
+            Ort::ThrowOnError(Ort::GetApi().UpdateCUDAProviderOptions(cuda_opts, keys, vals, 2));
+            opts_.AppendExecutionProvider_CUDA_V2(*cuda_opts);
+            Ort::GetApi().ReleaseCUDAProviderOptions(cuda_opts);
             use_cuda_ = true;
+            cuda_mem_ = std::make_unique<Ort::MemoryInfo>("Cuda", OrtDeviceAllocator, 0, OrtMemTypeDefault);
         } catch (const Ort::Exception &ex) {
             throw std::runtime_error(std::string("ONNX Runtime CUDA EP failed (need GPU ORT + cuDNN 9): ") +
                                      ex.what());
@@ -115,6 +120,26 @@ OnnxSession::OnnxSession(const std::string &model_path, int threads, bool use_cu
 
 Ort::Value OnnxSession::tensor_f32(std::vector<float> &data, const std::vector<int64_t> &shape) {
     return Ort::Value::CreateTensor<float>(mem_, data.data(), data.size(), shape.data(), shape.size());
+}
+
+Ort::Value OnnxSession::tensor_device(void *data, size_t n_elem, const std::vector<int64_t> &shape,
+                                      ONNXTensorElementDataType dtype) {
+    if (!cuda_mem_) {
+        throw std::runtime_error("CUDA memory info not initialized");
+    }
+    return Ort::Value::CreateTensor(*cuda_mem_, data, n_elem * (dtype == ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64 ? 8 : 4),
+                                    shape.data(), shape.size(), dtype);
+}
+
+void OnnxSession::run_io(std::vector<Ort::Value> &inputs, std::vector<Ort::Value> &outputs) {
+    Ort::IoBinding bind(*session_);
+    for (size_t i = 0; i < inputs.size() && i < input_names_.size(); ++i) {
+        bind.BindInput(input_names_[i].c_str(), inputs[i]);
+    }
+    for (size_t i = 0; i < outputs.size() && i < output_names_.size(); ++i) {
+        bind.BindOutput(output_names_[i].c_str(), outputs[i]);
+    }
+    session_->Run(Ort::RunOptions{nullptr}, bind);
 }
 
 std::vector<Ort::Value> OnnxSession::run(const std::vector<Ort::Value> &inputs) {

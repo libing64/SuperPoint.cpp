@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>
@@ -21,6 +22,11 @@ class OnnxSession {
     const std::vector<std::string> &output_names() const { return output_names_; }
 
     Ort::Value tensor_f32(std::vector<float> &data, const std::vector<int64_t> &shape);
+    Ort::Value tensor_device(void *data, size_t n_elem, const std::vector<int64_t> &shape,
+                             ONNXTensorElementDataType dtype = ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT);
+    void run_io(std::vector<Ort::Value> &inputs, std::vector<Ort::Value> &outputs);
+
+    bool use_cuda() const { return use_cuda_; }
 
  private:
     Ort::Env env_;
@@ -32,6 +38,7 @@ class OnnxSession {
     std::vector<std::string> output_names_;
     std::vector<const char *> input_ptrs_;
     std::vector<const char *> output_ptrs_;
+    std::unique_ptr<Ort::MemoryInfo> cuda_mem_;
     bool use_cuda_ = false;
 };
 

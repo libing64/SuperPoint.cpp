@@ -51,8 +51,8 @@ int main(int argc, char **argv) {
         sp.infer_dense(img1.first.data(), img1.second.height, img1.second.width, l1, d1, h1, w1);
         splg::write_dense(out, "0", l0, d0, h0, w0);
         splg::write_dense(out, "1", l1, d1, h1, w1);
-        splg::Features f0 = splg::superpoint_postprocess(l0.data(), d0.data(), h0, w0, cfg);
-        splg::Features f1 = splg::superpoint_postprocess(l1.data(), d1.data(), h1, w1, cfg);
+        splg::Features f0 = sp.extract(img0.first.data(), img0.second.height, img0.second.width);
+        splg::Features f1 = sp.extract(img1.first.data(), img1.second.height, img1.second.width);
         splg::write_features(out, "0", f0);
         splg::write_features(out, "1", f1);
 

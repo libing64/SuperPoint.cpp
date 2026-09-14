@@ -23,10 +23,22 @@ void TrtSuperPoint::infer_dense(const float *image, int height, int width, std::
 }
 
 Features TrtSuperPoint::extract(const float *image, int height, int width) {
+    engine_.set_input_shape("image", {1, 1, height, width});
+    auto sh = engine_.tensor_shape("score_logits");
+    const int h = static_cast<int>(sh.size() > 2 ? sh[2] : height / 8);
+    const int w = static_cast<int>(sh.size() > 3 ? sh[3] : width / 8);
+#ifdef SPLG_HAS_CUDA
+    engine_.enqueue({{"image", image}});
+    return superpoint_postprocess_cuda(static_cast<const float *>(engine_.gpu_ptr("score_logits")),
+                                       static_cast<const float *>(engine_.gpu_ptr("descriptors")), h, w, cfg_,
+                                       engine_.stream());
+#else
     std::vector<float> logits, desc;
-    int h = 0, w = 0;
-    infer_dense(image, height, width, logits, desc, h, w);
+    logits.resize(static_cast<size_t>(65 * h * w));
+    desc.resize(static_cast<size_t>(256 * h * w));
+    engine_.infer({{"image", image}}, {{"score_logits", logits.data()}, {"descriptors", desc.data()}});
     return superpoint_postprocess(logits.data(), desc.data(), h, w, cfg_);
+#endif
 }
 
 TrtLightGlue::TrtLightGlue(const std::string &engine_path) : engine_(engine_path) {}

@@ -31,6 +31,11 @@ class TrtEngine {
     void infer(const std::unordered_map<std::string, const float *> &inputs,
                const std::unordered_map<std::string, float *> &outputs_f32,
                const std::unordered_map<std::string, int64_t *> &outputs_i64 = {});
+    // H2D inputs and enqueue; dense outputs stay on device.
+    void enqueue(const std::unordered_map<std::string, const float *> &inputs);
+
+    void *gpu_ptr(const std::string &name);
+    cudaStream_t stream() const { return stream_; }
 
     std::vector<int64_t> tensor_shape(const std::string &name) const;
     nvinfer1::DataType tensor_dtype(const std::string &name) const;

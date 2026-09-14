@@ -1,6 +1,6 @@
 # SuperPoint + LightGlue inference (ONNX Runtime / TensorRT)
 
-C++ inference for SuperPoint and LightGlue using the same **cvg/LightGlue** weights as the `deep_matching` PyTorch stack. SuperPoint ONNX only emits dense score logits and descriptors; NMS / top-k / bilinear sampling live in shared C++ so ORT and TensorRT stay aligned.
+C++ inference for SuperPoint and LightGlue using the same **cvg/LightGlue** weights as the `deep_matching` PyTorch stack. SuperPoint ONNX/TRT graphs emit dense score logits and descriptors; softmax / NMS / top-k / bilinear sampling run on CUDA (CPU `--cpu` fallback) so ORT and TensorRT stay aligned with PyTorch.
 
 ## Layout
 
@@ -100,3 +100,11 @@ python python/bench_hpatches.py --out outputs/hpatches
 ```
 
 Writes `outputs/hpatches/summary.json`, per-backend `results.jsonl`, and match visualizations under `outputs/hpatches/viz/` (`i_crownday`, `v_bark`, `i_books`, `v_bricks` by default). Reports MMA@1/3/5, homography AUC@3/5/10, and SuperPoint / LightGlue / end-to-end milliseconds.
+
+Measured on 580 HPatches pairs (resize short 480, max 2048 keypoints, GPU, warmup 5):
+
+| backend | MMA@3 | IoU vs PT | SuperPoint ms | LightGlue ms | e2e ms |
+|---------|-------|-----------|---------------|--------------|--------|
+| PyTorch | 0.726 | — | 15.3 | 33.2 | 48.5 |
+| TensorRT | 0.726 | 0.981 | 12.6 | 40.3 | 53.0 |
+| ONNX Runtime CUDA | 0.726 | 0.981 | 26.9 | 54.1 | 81.0 |

@@ -213,6 +213,20 @@ void TrtEngine::infer(const std::unordered_map<std::string, const float *> &inpu
     SPLG_CUDA(cudaStreamSynchronize(stream_));
 }
 
+void TrtEngine::enqueue(const std::unordered_map<std::string, const float *> &inputs) {
+    allocate();
+    for (const auto &kv : inputs) {
+        const nvinfer1::Dims d = context_->getTensorShape(kv.first.c_str());
+        const size_t bytes = static_cast<size_t>(volume(d)) * sizeof(float);
+        SPLG_CUDA(cudaMemcpyAsync(device_ptr(kv.first), kv.second, bytes, cudaMemcpyHostToDevice, stream_));
+    }
+    if (!context_->enqueueV3(stream_)) {
+        throw std::runtime_error("enqueueV3 failed");
+    }
+}
+
+void *TrtEngine::gpu_ptr(const std::string &name) { return device_ptr(name); }
+
 }  // namespace splg
 
 #endif

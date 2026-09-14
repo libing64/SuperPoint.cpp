@@ -54,10 +54,8 @@ int main(int argc, char **argv) {
         splg::write_dense(out, "0", maps0.score_logits, maps0.descriptors, maps0.h, maps0.w);
         splg::write_dense(out, "1", maps1.score_logits, maps1.descriptors, maps1.h, maps1.w);
 
-        splg::Features f0 = splg::superpoint_postprocess(maps0.score_logits.data(), maps0.descriptors.data(),
-                                                         maps0.h, maps0.w, cfg);
-        splg::Features f1 = splg::superpoint_postprocess(maps1.score_logits.data(), maps1.descriptors.data(),
-                                                         maps1.h, maps1.w, cfg);
+        splg::Features f0 = sp.extract(img0.first.data(), img0.second.height, img0.second.width);
+        splg::Features f1 = sp.extract(img1.first.data(), img1.second.height, img1.second.width);
         splg::write_features(out, "0", f0);
         splg::write_features(out, "1", f1);
 
