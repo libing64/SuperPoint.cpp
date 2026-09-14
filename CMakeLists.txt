@@ -64,6 +64,11 @@ if(TensorRT_FOUND AND CUDAToolkit_FOUND)
     add_executable(infer_trt tools/infer_trt.cpp)
     target_compile_definitions(infer_trt PRIVATE SPLG_HAS_TENSORRT)
     target_link_libraries(infer_trt PRIVATE splg_trt)
+    get_filename_component(_trt_libdir "${TensorRT_LIBRARY}" DIRECTORY)
+    set_target_properties(infer_trt PROPERTIES
+        BUILD_RPATH "${_trt_libdir}"
+        INSTALL_RPATH "${_trt_libdir}"
+    )
 else()
     message(STATUS "TensorRT not found; infer_trt will be a stub")
     add_executable(infer_trt tools/infer_trt.cpp)

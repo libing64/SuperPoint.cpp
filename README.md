@@ -20,7 +20,7 @@ conda activate deep_matching
 pip install 'numpy<2' onnx onnxruntime onnxscript   # export + optional Python smoke
 ```
 
-TensorRT is optional. If `NvInfer` / `trtexec` / `import tensorrt` is missing, CMake builds a stub `infer_trt` and ORT still compares against PyTorch. LightGlue ONNX export uses the torch dynamo exporter (`onnxscript`).
+TensorRT 11.2 (CUDA 13.3) is extracted under `/home/libing/opt/tensorrt-11.2.1.2` (no sudo; debs unpacked locally). LightGlue ONNX export uses the torch dynamo exporter (`onnxscript`).
 
 ## 1. Dump PyTorch reference
 
@@ -43,11 +43,12 @@ python python/export_onnx.py --out models
 ## 3. Build C++
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DTENSORRT_ROOT=/home/libing/opt/tensorrt-11.2.1.2
 cmake --build build -j
 ```
 
-ONNX Runtime is picked up from `onnxruntime_ROOT`, COLMAP’s cached copy, or downloaded (v1.24.4). TensorRT is enabled only if headers and `libnvinfer` are found.
+ONNX Runtime is picked up from `onnxruntime_ROOT`, COLMAP’s cached copy, or downloaded (v1.24.4).
 
 ## 4. Run ORT
 
@@ -62,7 +63,10 @@ ONNX Runtime is picked up from `onnxruntime_ROOT`, COLMAP’s cached copy, or do
 ## 5. TensorRT (optional)
 
 ```bash
+export LD_LIBRARY_PATH=/home/libing/opt/tensorrt-11.2.1.2/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+export PATH=/home/libing/opt/tensorrt-11.2.1.2/usr/bin:$PATH
 python python/build_trt_engine.py --onnx-dir models --out models
+# or trtexec --onnx=... --saveEngine=... --noTF32 --skipInference --minShapes=... --optShapes=... --maxShapes=...
 ./build/bin/infer_trt \
   --sp models/superpoint.engine \
   --lg models/superpoint_lightglue.engine \
@@ -70,7 +74,7 @@ python python/build_trt_engine.py --onnx-dir models --out models
   --out outputs/trt
 ```
 
-Optimization profiles: SuperPoint H/W 64–1024 (opt 480×640); LightGlue N 1–2048 (opt 512). FP32 only.
+Optimization profiles: SuperPoint H/W 64–1024 (opt 480×640); LightGlue N 1–2048 (opt 512). Build with `--noTF32` for FP32-accurate comparison.
 
 ## 6. Compare
 

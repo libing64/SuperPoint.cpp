@@ -58,7 +58,7 @@ def build_with_trtexec(
         "trtexec",
         f"--onnx={onnx_path}",
         f"--saveEngine={engine_path}",
-        "--fp32",
+        "--noTF32",
         f"--minShapes={min_shapes}",
         f"--optShapes={opt_shapes}",
         f"--maxShapes={max_shapes}",
