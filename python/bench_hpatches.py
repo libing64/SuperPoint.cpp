@@ -632,6 +632,11 @@ def main() -> None:
     parser.add_argument("--warmup", type=int, default=3)
     parser.add_argument("--viz-pairs", default=",".join(DEFAULT_VIZ))
     parser.add_argument("--keep-work", action="store_true")
+    parser.add_argument(
+        "--assemble-only",
+        action="store_true",
+        help="Skip inference; rebuild summary/viz from existing backend outputs",
+    )
     args = parser.parse_args()
 
     device = args.device
@@ -649,58 +654,94 @@ def main() -> None:
     args.out.mkdir(parents=True, exist_ok=True)
     work_dir = args.out / "work"
     work: dict[str, dict[str, Any]] = {}
-    for i, pair in enumerate(pairs):
-        work[pair["pair_id"]] = prepare_pair(
-            str(pair["image0"]), str(pair["image1"]), args.resize_short
-        )
-        if (i + 1) % 50 == 0 or i + 1 == len(pairs):
-            print(f"preprocessed {i + 1}/{len(pairs)}")
-
     results: dict[str, list[dict[str, Any]]] = {}
     backend_dirs: dict[str, Path] = {}
-
-    if "pytorch" in backends:
-        backend_dirs["pytorch"] = args.out / "pytorch"
-        results["pytorch"] = run_pytorch(
-            pairs, work, backend_dirs["pytorch"], device, args.max_keypoints, args.warmup
-        )
-
-    need_cpp = [b for b in backends if b in {"onnx", "trt"}]
     list_path = None
-    if need_cpp:
-        list_path = write_work_and_list(pairs, work, work_dir)
 
-    if "onnx" in backends:
-        exe = args.bin_dir / "bench_onnx"
-        if not exe.exists():
-            raise SystemExit(f"missing {exe}; build with cmake --build build -j")
-        backend_dirs["onnx"] = args.out / "onnx"
-        run_cpp_backend(
-            exe,
-            args.models / "superpoint.onnx",
-            args.models / "superpoint_lightglue.onnx",
-            list_path,
-            backend_dirs["onnx"],
-            args.max_keypoints,
-            args.warmup,
-        )
-        results["onnx"] = load_cpp_records(pairs, work, backend_dirs["onnx"], "onnx")
+    if args.assemble_only:
+        for pair in pairs:
+            meta_path = work_dir / pair_dir_name(pair["pair_id"]) / "meta.json"
+            if meta_path.exists():
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                work[pair["pair_id"]] = {
+                    "scale0": np.asarray(meta["scale0"], dtype=np.float32),
+                    "scale1": np.asarray(meta["scale1"], dtype=np.float32),
+                    "orig_hw0": tuple(meta["orig_hw0"]),
+                    "orig_hw1": tuple(meta["orig_hw1"]),
+                }
+            else:
+                work[pair["pair_id"]] = prepare_pair(
+                    str(pair["image0"]), str(pair["image1"]), args.resize_short
+                )
+        for name in backends:
+            bdir = args.out / name
+            if not bdir.exists():
+                continue
+            backend_dirs[name] = bdir
+            cached = bdir / "results.jsonl"
+            if name == "pytorch" and cached.exists():
+                results[name] = [
+                    json.loads(line)
+                    for line in cached.read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                ]
+            elif name != "pytorch":
+                results[name] = load_cpp_records(pairs, work, bdir, name)
+        viz_ids = [s.strip() for s in args.viz_pairs.split(",") if s.strip()]
+        for vid in viz_ids:
+            if vid in work and "rgb0" not in work[vid]:
+                pair = next(p for p in pairs if p["pair_id"] == vid)
+                work[vid] = prepare_pair(str(pair["image0"]), str(pair["image1"]), args.resize_short)
+    else:
+        for i, pair in enumerate(pairs):
+            work[pair["pair_id"]] = prepare_pair(
+                str(pair["image0"]), str(pair["image1"]), args.resize_short
+            )
+            if (i + 1) % 50 == 0 or i + 1 == len(pairs):
+                print(f"preprocessed {i + 1}/{len(pairs)}")
 
-    if "trt" in backends:
-        exe = args.bin_dir / "bench_trt"
-        if not exe.exists():
-            raise SystemExit(f"missing {exe}; build TensorRT target bench_trt")
-        backend_dirs["trt"] = args.out / "trt"
-        run_cpp_backend(
-            exe,
-            args.models / "superpoint.engine",
-            args.models / "superpoint_lightglue.engine",
-            list_path,
-            backend_dirs["trt"],
-            args.max_keypoints,
-            args.warmup,
-        )
-        results["trt"] = load_cpp_records(pairs, work, backend_dirs["trt"], "trt")
+    if not args.assemble_only:
+        if "pytorch" in backends:
+            backend_dirs["pytorch"] = args.out / "pytorch"
+            results["pytorch"] = run_pytorch(
+                pairs, work, backend_dirs["pytorch"], device, args.max_keypoints, args.warmup
+            )
+
+        need_cpp = [b for b in backends if b in {"onnx", "trt"}]
+        if need_cpp:
+            list_path = write_work_and_list(pairs, work, work_dir)
+
+        if "onnx" in backends:
+            exe = args.bin_dir / "bench_onnx"
+            if not exe.exists():
+                raise SystemExit(f"missing {exe}; build with cmake --build build -j")
+            backend_dirs["onnx"] = args.out / "onnx"
+            run_cpp_backend(
+                exe,
+                args.models / "superpoint.onnx",
+                args.models / "superpoint_lightglue.onnx",
+                list_path,
+                backend_dirs["onnx"],
+                args.max_keypoints,
+                args.warmup,
+            )
+            results["onnx"] = load_cpp_records(pairs, work, backend_dirs["onnx"], "onnx")
+
+        if "trt" in backends:
+            exe = args.bin_dir / "bench_trt"
+            if not exe.exists():
+                raise SystemExit(f"missing {exe}; build TensorRT target bench_trt")
+            backend_dirs["trt"] = args.out / "trt"
+            run_cpp_backend(
+                exe,
+                args.models / "superpoint.engine",
+                args.models / "superpoint_lightglue.engine",
+                list_path,
+                backend_dirs["trt"],
+                args.max_keypoints,
+                args.warmup,
+            )
+            results["trt"] = load_cpp_records(pairs, work, backend_dirs["trt"], "trt")
 
     summaries = {name: summarize(recs) for name, recs in results.items()}
     if "pytorch" in results:

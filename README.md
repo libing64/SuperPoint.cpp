@@ -71,7 +71,7 @@ python python/build_trt_engine.py --onnx-dir models --out models
   --out outputs/trt
 ```
 
-Optimization profiles: SuperPoint H/W 64–1024 (opt 480×640); LightGlue N 1–2048 (opt 512). Build with `--noTF32` for FP32-accurate comparison.
+Optimization profiles: SuperPoint H/W 64–1536 (opt 480×640; HPatches wide images need >1024); LightGlue N 1–2048 (opt 512). Build with `--noTF32` for FP32-accurate comparison.
 
 ## 6. Compare
 

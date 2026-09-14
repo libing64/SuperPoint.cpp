@@ -74,7 +74,7 @@ def main() -> None:
     parser.add_argument("--opt-h", type=int, default=480)
     parser.add_argument("--opt-w", type=int, default=640)
     parser.add_argument("--min-hw", type=int, default=64)
-    parser.add_argument("--max-hw", type=int, default=1024)
+    parser.add_argument("--max-hw", type=int, default=1536)
     parser.add_argument("--opt-n", type=int, default=512)
     parser.add_argument("--max-n", type=int, default=2048)
     parser.add_argument("--workspace-gb", type=int, default=4)
