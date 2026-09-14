@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -392,6 +393,37 @@ def write_work_and_list(
     return list_path
 
 
+def cudnn9_lib_dir() -> Path | None:
+    try:
+        import nvidia.cudnn
+
+        p = Path(nvidia.cudnn.__file__).resolve().parent / "lib"
+        if (p / "libcudnn.so.9").exists():
+            return p
+    except Exception:
+        pass
+    conda = os.environ.get("CONDA_PREFIX")
+    if conda:
+        for cand in Path(conda).glob("lib/python*/site-packages/nvidia/cudnn/lib/libcudnn.so.9"):
+            return cand.parent
+    return None
+
+
+def cpp_env() -> dict[str, str]:
+    env = os.environ.copy()
+    extras = []
+    cudnn = cudnn9_lib_dir()
+    if cudnn is not None:
+        extras.append(str(cudnn))
+    cuda12 = Path("/usr/local/cuda-12.2/targets/x86_64-linux/lib")
+    if cuda12.exists():
+        extras.append(str(cuda12))
+    if extras:
+        old = env.get("LD_LIBRARY_PATH", "")
+        env["LD_LIBRARY_PATH"] = ":".join(extras + ([old] if old else []))
+    return env
+
+
 def run_cpp_backend(
     exe: Path,
     sp_path: Path,
@@ -418,7 +450,7 @@ def run_cpp_backend(
         str(warmup),
     ]
     print(" ".join(cmd), flush=True)
-    subprocess.check_call(cmd)
+    subprocess.check_call(cmd, env=cpp_env())
 
 
 def load_cpp_records(
@@ -454,6 +486,7 @@ def load_cpp_records(
             "ms_lg": float(t.get("ms_lg", 0.0)),
             "ms_e2e": float(t.get("ms_e2e", 0.0)),
             "warmup": bool(t.get("warmup", 0)),
+            "device": t.get("device", "cuda" if backend == "trt" else "cpu"),
             **evaluate_pair(
                 kpts_to_original(k0, prep["scale0"]),
                 kpts_to_original(k1, prep["scale1"]),
@@ -781,7 +814,7 @@ def main() -> None:
         "resize_short": args.resize_short,
         "max_keypoints": args.max_keypoints,
         "pytorch_device": device,
-        "onnx_device": "cpu",
+        "onnx_device": (results.get("onnx") or [{}])[0].get("device", "cuda"),
         "trt_device": "cuda",
         "summaries": summaries,
         "pairs": {name: recs for name, recs in results.items()},

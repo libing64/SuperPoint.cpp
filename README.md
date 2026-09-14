@@ -47,7 +47,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
 
-ONNX Runtime is picked up from `onnxruntime_ROOT`, COLMAP’s cached copy, or downloaded (v1.24.4).
+ONNX Runtime is picked up from `onnxruntime_ROOT`, COLMAP’s GPU build, or downloaded (`onnxruntime-linux-x64-gpu` v1.24.4). C++ ORT uses the **CUDA** execution provider (pass `--cpu` to force CPU). That needs `libonnxruntime_providers_cuda.so` and **cuDNN 9** (the `deep_matching` env’s `nvidia-cudnn-cu12` wheel is enough; `bench_hpatches.py` puts it on `LD_LIBRARY_PATH`).
 
 ## 4. Run ORT
 
@@ -90,7 +90,7 @@ python python/compare_accuracy.py --ref outputs/ref --onnx outputs/onnx --trt ou
 
 ## 7. HPatches timing + accuracy
 
-Same preprocess as the dump (ITU gray, `resize_short=480`, pad to a multiple of 8). PyTorch runs on GPU when available; C++ ORT is CPU; C++ TensorRT is GPU. Models are loaded once per backend.
+Same preprocess as the dump (ITU gray, `resize_short=480`, pad to a multiple of 8). PyTorch, C++ ORT, and C++ TensorRT all run on GPU when CUDA is available. Models are loaded once per backend.
 
 ```bash
 conda activate deep_matching

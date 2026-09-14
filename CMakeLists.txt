@@ -15,7 +15,7 @@ if(NOT onnxruntime_FOUND AND SPLG_FETCH_ONNXRUNTIME)
     include(FetchContent)
     set(ORT_VERSION "1.24.4")
     FetchContent_Declare(onnxruntime_prebuilt
-        URL "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-${ORT_VERSION}.tgz"
+        URL "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-gpu-${ORT_VERSION}.tgz"
     )
     FetchContent_GetProperties(onnxruntime_prebuilt)
     if(NOT onnxruntime_prebuilt_POPULATED)
@@ -41,7 +41,7 @@ add_library(splg_onnx STATIC
     src/onnx/onnx_models.cpp
 )
 target_include_directories(splg_onnx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(splg_onnx PUBLIC splg_common onnxruntime::onnxruntime)
+target_link_libraries(splg_onnx PUBLIC splg_common onnxruntime::onnxruntime ${CMAKE_DL_LIBS})
 
 add_executable(infer_onnx tools/infer_onnx.cpp)
 target_link_libraries(infer_onnx PRIVATE splg_onnx)

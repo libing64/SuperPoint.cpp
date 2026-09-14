@@ -10,7 +10,9 @@ namespace splg {
 
 class OnnxSession {
  public:
-    explicit OnnxSession(const std::string &model_path, int threads = 0);
+    explicit OnnxSession(const std::string &model_path, int threads = 0, bool use_cuda = true);
+
+    const char *device() const { return use_cuda_ ? "cuda" : "cpu"; }
 
     std::vector<Ort::Value> run(const std::vector<Ort::Value> &inputs);
 
@@ -30,6 +32,7 @@ class OnnxSession {
     std::vector<std::string> output_names_;
     std::vector<const char *> input_ptrs_;
     std::vector<const char *> output_ptrs_;
+    bool use_cuda_ = false;
 };
 
 }  // namespace splg

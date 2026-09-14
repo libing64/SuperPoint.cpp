@@ -17,7 +17,8 @@ struct DenseMaps {
 
 class OnnxSuperPoint {
  public:
-    explicit OnnxSuperPoint(const std::string &onnx_path, SuperPointConfig cfg = {});
+    explicit OnnxSuperPoint(const std::string &onnx_path, SuperPointConfig cfg = {}, bool use_cuda = true);
+    const char *device() const { return sess_.device(); }
 
     DenseMaps infer_dense(const float *image, int height, int width);
     Features extract(const float *image, int height, int width);
@@ -31,7 +32,8 @@ class OnnxSuperPoint {
 
 class OnnxLightGlue {
  public:
-    explicit OnnxLightGlue(const std::string &onnx_path);
+    explicit OnnxLightGlue(const std::string &onnx_path, bool use_cuda = true);
+    const char *device() const { return sess_.device(); }
 
     Matches match(const Features &f0, const Features &f1, float width0, float height0, float width1,
                   float height1);

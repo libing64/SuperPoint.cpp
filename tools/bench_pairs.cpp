@@ -29,7 +29,7 @@ void usage() {
 #else
     std::fprintf(stderr,
                  "Usage: bench_onnx --sp superpoint.onnx --lg lightglue.onnx "
-                 "--list pairs.txt --out outputs/hpatches/onnx [--max-keypoints N] [--warmup N]\n");
+                 "--list pairs.txt --out outputs/hpatches/onnx [--max-keypoints N] [--warmup N] [--cpu]\n");
 #endif
 }
 
@@ -82,6 +82,7 @@ int count_matches(const splg::Matches &m) {
 int main(int argc, char **argv) {
     std::string sp_path, lg_path, list_path, out;
     int warmup = 3;
+    bool use_cuda = true;
     splg::SuperPointConfig cfg;
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--sp") == 0 && i + 1 < argc) {
@@ -96,6 +97,8 @@ int main(int argc, char **argv) {
             cfg.max_keypoints = std::atoi(argv[++i]);
         } else if (std::strcmp(argv[i], "--warmup") == 0 && i + 1 < argc) {
             warmup = std::atoi(argv[++i]);
+        } else if (std::strcmp(argv[i], "--cpu") == 0) {
+            use_cuda = false;
         } else if (std::strcmp(argv[i], "-h") == 0 || std::strcmp(argv[i], "--help") == 0) {
             usage();
             return 0;
@@ -117,11 +120,15 @@ int main(int argc, char **argv) {
         splg::TrtSuperPoint sp(sp_path, cfg);
         splg::TrtLightGlue lg(lg_path);
         const char *backend = "trt";
+        const char *device = "cuda";
+        (void)use_cuda;
 #else
-        splg::OnnxSuperPoint sp(sp_path, cfg);
-        splg::OnnxLightGlue lg(lg_path);
+        splg::OnnxSuperPoint sp(sp_path, cfg, use_cuda);
+        splg::OnnxLightGlue lg(lg_path, use_cuda);
         const char *backend = "onnx";
+        const char *device = sp.device();
 #endif
+        std::printf("%s device=%s  pairs=%zu\n", backend, device, items.size());
 
         std::ofstream jsonl(splg::join_path(out, "times.jsonl"));
         if (!jsonl) {
@@ -170,7 +177,8 @@ int main(int argc, char **argv) {
             const int nm = count_matches(m);
             jsonl << "{\"pair_id\":\"" << item.pair_id << "\",\"n0\":" << f0.n << ",\"n1\":" << f1.n
                   << ",\"n_matches\":" << nm << ",\"ms_sp\":" << ms_sp << ",\"ms_lg\":" << ms_lg
-                  << ",\"ms_e2e\":" << ms_e2e << ",\"warmup\":" << (count_time ? 0 : 1) << "}\n";
+                  << ",\"ms_e2e\":" << ms_e2e << ",\"warmup\":" << (count_time ? 0 : 1) << ",\"device\":\""
+                  << device << "\"}\n";
             std::printf("[%s %zu/%zu] %s  N0=%d N1=%d matches=%d  SP=%.2f ms LG=%.2f ms e2e=%.2f ms%s\n",
                         backend, i + 1, items.size(), item.pair_id.c_str(), f0.n, f1.n, nm, ms_sp, ms_lg,
                         ms_e2e, count_time ? "" : " (warmup)");

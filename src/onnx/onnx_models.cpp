@@ -7,8 +7,8 @@
 
 namespace splg {
 
-OnnxSuperPoint::OnnxSuperPoint(const std::string &onnx_path, SuperPointConfig cfg)
-    : sess_(onnx_path), cfg_(cfg) {}
+OnnxSuperPoint::OnnxSuperPoint(const std::string &onnx_path, SuperPointConfig cfg, bool use_cuda)
+    : sess_(onnx_path, 0, use_cuda), cfg_(cfg) {}
 
 DenseMaps OnnxSuperPoint::infer_dense(const float *image, int height, int width) {
     std::vector<float> input(static_cast<size_t>(height * width));
@@ -42,7 +42,7 @@ Features OnnxSuperPoint::extract(const float *image, int height, int width) {
     return superpoint_postprocess(maps.score_logits.data(), maps.descriptors.data(), maps.h, maps.w, cfg_);
 }
 
-OnnxLightGlue::OnnxLightGlue(const std::string &onnx_path) : sess_(onnx_path) {}
+OnnxLightGlue::OnnxLightGlue(const std::string &onnx_path, bool use_cuda) : sess_(onnx_path, 0, use_cuda) {}
 
 Matches OnnxLightGlue::match(const Features &f0, const Features &f1, float width0, float height0,
                              float width1, float height1) {
