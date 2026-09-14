@@ -45,9 +45,12 @@ target_link_libraries(splg_onnx PUBLIC splg_common onnxruntime::onnxruntime)
 
 add_executable(infer_onnx tools/infer_onnx.cpp)
 target_link_libraries(infer_onnx PRIVATE splg_onnx)
+add_executable(bench_onnx tools/bench_pairs.cpp)
+target_link_libraries(bench_onnx PRIVATE splg_onnx)
 if(onnxruntime_LIBRARY)
     get_filename_component(_ort_libdir "${onnxruntime_LIBRARY}" DIRECTORY)
     set_target_properties(infer_onnx PROPERTIES BUILD_RPATH "${_ort_libdir}" INSTALL_RPATH "${_ort_libdir}")
+    set_target_properties(bench_onnx PROPERTIES BUILD_RPATH "${_ort_libdir}" INSTALL_RPATH "${_ort_libdir}")
 endif()
 
 find_package(CUDAToolkit QUIET)
@@ -64,8 +67,15 @@ if(TensorRT_FOUND AND CUDAToolkit_FOUND)
     add_executable(infer_trt tools/infer_trt.cpp)
     target_compile_definitions(infer_trt PRIVATE SPLG_HAS_TENSORRT)
     target_link_libraries(infer_trt PRIVATE splg_trt)
+    add_executable(bench_trt tools/bench_pairs.cpp)
+    target_compile_definitions(bench_trt PRIVATE SPLG_HAS_TENSORRT SPLG_BENCH_TRT)
+    target_link_libraries(bench_trt PRIVATE splg_trt)
     get_filename_component(_trt_libdir "${TensorRT_LIBRARY}" DIRECTORY)
     set_target_properties(infer_trt PROPERTIES
+        BUILD_RPATH "${_trt_libdir}"
+        INSTALL_RPATH "${_trt_libdir}"
+    )
+    set_target_properties(bench_trt PROPERTIES
         BUILD_RPATH "${_trt_libdir}"
         INSTALL_RPATH "${_trt_libdir}"
     )

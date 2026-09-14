@@ -74,23 +74,59 @@ def load_or_make_pair(
     resize_short: Optional[int] = 480,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return two grayscale float32 images in [0, 1], H/W multiple of 8."""
+    prep = prepare_pair(image0, image1, resize_short)
+    return prep["gray0"], prep["gray1"]
+
+
+def prepare_pair(
+    image0: Optional[str],
+    image1: Optional[str],
+    resize_short: Optional[int] = 480,
+) -> dict:
+    """Load a pair and apply the shared SuperPoint preprocess.
+
+    Returns grayscale work images (padded to a multiple of 8) plus the
+    resize scales needed to map keypoints back to the original image.
+    ``scale`` is ``[orig_w / resized_w, orig_h / resized_h]``.
+    """
     if image0 and image1 and Path(image0).exists() and Path(image1).exists():
-        g0 = _read_any(image0)
-        g1 = _read_any(image1)
+        rgb0 = _read_any(image0)
+        rgb1 = _read_any(image1)
     else:
-        g0 = _checkerboard(480, 640, phase=0)
-        g1 = _checkerboard(480, 640, phase=6)
+        rgb0 = _checkerboard(480, 640, phase=0)
+        rgb1 = _checkerboard(480, 640, phase=6)
 
+    orig_hw0 = (int(rgb0.shape[0]), int(rgb0.shape[1]))
+    orig_hw1 = (int(rgb1.shape[0]), int(rgb1.shape[1]))
+    scale0 = np.array([1.0, 1.0], dtype=np.float32)
+    scale1 = np.array([1.0, 1.0], dtype=np.float32)
+    vis0, vis1 = rgb0, rgb1
     if resize_short:
-        g0, _ = resize_short_edge(g0, resize_short)
-        g1, _ = resize_short_edge(g1, resize_short)
-        g0 = rgb_to_gray_itu(g0) if g0.ndim == 3 else rgb_to_gray_itu(g0)
-        g1 = rgb_to_gray_itu(g1) if g1.ndim == 3 else rgb_to_gray_itu(g1)
-    else:
-        g0 = rgb_to_gray_itu(g0)
-        g1 = rgb_to_gray_itu(g1)
+        vis0, scale0 = resize_short_edge(rgb0, resize_short)
+        vis1, scale1 = resize_short_edge(rgb1, resize_short)
+    gray0 = pad_image(rgb_to_gray_itu(vis0).astype(np.float32))
+    gray1 = pad_image(rgb_to_gray_itu(vis1).astype(np.float32))
+    return {
+        "gray0": gray0,
+        "gray1": gray1,
+        "rgb0": vis0,
+        "rgb1": vis1,
+        "rgb0_orig": rgb0,
+        "rgb1_orig": rgb1,
+        "scale0": scale0.astype(np.float32),
+        "scale1": scale1.astype(np.float32),
+        "orig_hw0": orig_hw0,
+        "orig_hw1": orig_hw1,
+    }
 
-    return pad_image(g0.astype(np.float32)), pad_image(g1.astype(np.float32))
+
+def kpts_to_original(kpts: np.ndarray, scale: np.ndarray) -> np.ndarray:
+    """Map work-image keypoints (x, y) back to the original image."""
+    pts = np.asarray(kpts, dtype=np.float64).reshape(-1, 2)
+    if len(pts) == 0:
+        return pts.astype(np.float64)
+    sx, sy = float(scale[0]), float(scale[1])
+    return np.stack([pts[:, 0] * sx, pts[:, 1] * sy], axis=1)
 
 
 def _read_any(path: str) -> np.ndarray:

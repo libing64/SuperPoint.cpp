@@ -1,30 +1,41 @@
-# Locate TensorRT. Sets TensorRT_FOUND, TensorRT::NvInfer, TensorRT::NvOnnxParser.
+# Locate a system TensorRT install. Optional TENSORRT_ROOT overrides the prefix.
 
-set(TENSORRT_ROOT "" CACHE PATH "TensorRT install prefix")
+set(TENSORRT_ROOT "" CACHE PATH "TensorRT install prefix (optional)")
 
-set(_trt_include_hints
-    ${TENSORRT_ROOT}/include
-    ${TENSORRT_ROOT}/include/x86_64-linux-gnu
-    ${TENSORRT_ROOT}/usr/include
-    ${TENSORRT_ROOT}/usr/include/x86_64-linux-gnu
-    /usr/include
-    /usr/include/x86_64-linux-gnu
-    /usr/local/tensorrt/include
-)
-set(_trt_lib_hints
-    ${TENSORRT_ROOT}/lib
-    ${TENSORRT_ROOT}/lib64
-    ${TENSORRT_ROOT}/lib/x86_64-linux-gnu
-    ${TENSORRT_ROOT}/usr/lib
-    ${TENSORRT_ROOT}/usr/lib/x86_64-linux-gnu
-    /usr/lib
-    /usr/lib/x86_64-linux-gnu
-    /usr/local/tensorrt/lib
+find_path(TensorRT_INCLUDE_DIR
+    NAMES NvInfer.h
+    HINTS
+        ${TENSORRT_ROOT}/include
+        ${TENSORRT_ROOT}/include/x86_64-linux-gnu
+    PATHS
+        /usr/include
+        /usr/include/x86_64-linux-gnu
+        /usr/local/include
 )
 
-find_path(TensorRT_INCLUDE_DIR NAMES NvInfer.h HINTS ${_trt_include_hints})
-find_library(TensorRT_LIBRARY NAMES nvinfer HINTS ${_trt_lib_hints})
-find_library(TensorRT_ONNX_LIBRARY NAMES nvonnxparser HINTS ${_trt_lib_hints})
+find_library(TensorRT_LIBRARY
+    NAMES nvinfer
+    HINTS
+        ${TENSORRT_ROOT}/lib
+        ${TENSORRT_ROOT}/lib64
+        ${TENSORRT_ROOT}/lib/x86_64-linux-gnu
+    PATHS
+        /usr/lib
+        /usr/lib/x86_64-linux-gnu
+        /usr/local/lib
+)
+
+find_library(TensorRT_ONNX_LIBRARY
+    NAMES nvonnxparser
+    HINTS
+        ${TENSORRT_ROOT}/lib
+        ${TENSORRT_ROOT}/lib64
+        ${TENSORRT_ROOT}/lib/x86_64-linux-gnu
+    PATHS
+        /usr/lib
+        /usr/lib/x86_64-linux-gnu
+        /usr/local/lib
+)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(TensorRT DEFAULT_MSG TensorRT_INCLUDE_DIR TensorRT_LIBRARY)

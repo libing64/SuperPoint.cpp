@@ -9,8 +9,8 @@ include/splg/     public types and backends
 src/common/       npy IO, SuperPoint postprocess, LightGlue filter
 src/onnx/         ONNX Runtime SuperPoint + LightGlue
 src/trt/          TensorRT engines (optional)
-tools/            infer_onnx, infer_trt
-python/           dump / export / TRT build / compare
+tools/            infer_onnx, infer_trt, bench_onnx, bench_trt
+python/           dump / export / TRT build / compare / HPatches bench
 ```
 
 ## Environment
@@ -20,7 +20,7 @@ conda activate deep_matching
 pip install 'numpy<2' onnx onnxruntime onnxscript   # export + optional Python smoke
 ```
 
-TensorRT 11.2 (CUDA 13.3) is extracted under `/home/libing/opt/tensorrt-11.2.1.2` (no sudo; debs unpacked locally). LightGlue ONNX export uses the torch dynamo exporter (`onnxscript`).
+TensorRT comes from the system install (`libnvinfer-dev`, `trtexec` on `PATH`). LightGlue ONNX export uses the torch dynamo exporter (`onnxscript`).
 
 ## 1. Dump PyTorch reference
 
@@ -43,8 +43,7 @@ python python/export_onnx.py --out models
 ## 3. Build C++
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-  -DTENSORRT_ROOT=/home/libing/opt/tensorrt-11.2.1.2
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
 
@@ -63,10 +62,8 @@ ONNX Runtime is picked up from `onnxruntime_ROOT`, COLMAP’s cached copy, or do
 ## 5. TensorRT (optional)
 
 ```bash
-export LD_LIBRARY_PATH=/home/libing/opt/tensorrt-11.2.1.2/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
-export PATH=/home/libing/opt/tensorrt-11.2.1.2/usr/bin:$PATH
 python python/build_trt_engine.py --onnx-dir models --out models
-# or trtexec --onnx=... --saveEngine=... --noTF32 --skipInference --minShapes=... --optShapes=... --maxShapes=...
+# or: trtexec --onnx=... --saveEngine=... --noTF32 --skipInference --minShapes=... --optShapes=... --maxShapes=...
 ./build/bin/infer_trt \
   --sp models/superpoint.engine \
   --lg models/superpoint_lightglue.engine \
@@ -90,3 +87,16 @@ python python/compare_accuracy.py --ref outputs/ref --onnx outputs/onnx --trt ou
 | End-to-end pair IoU | > 0.95 | > 0.95 |
 
 `lg_ref_matches0.npy` is LightGlue run on the PyTorch keypoints so matcher error is not mixed with detector jitter.
+
+## 7. HPatches timing + accuracy
+
+Same preprocess as the dump (ITU gray, `resize_short=480`, pad to a multiple of 8). PyTorch runs on GPU when available; C++ ORT is CPU; C++ TensorRT is GPU. Models are loaded once per backend.
+
+```bash
+conda activate deep_matching
+cmake --build build -j --target bench_onnx bench_trt
+python python/bench_hpatches.py --out outputs/hpatches
+# subset: python python/bench_hpatches.py --max-pairs 20 --out outputs/hpatches
+```
+
+Writes `outputs/hpatches/summary.json`, per-backend `results.jsonl`, and match visualizations under `outputs/hpatches/viz/` (`i_crownday`, `v_bark`, `i_books`, `v_bricks` by default). Reports MMA@1/3/5, homography AUC@3/5/10, and SuperPoint / LightGlue / end-to-end milliseconds.
